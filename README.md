@@ -317,31 +317,11 @@ Jika ingin ghost tidak bisa masuk checkpoint:
 
 ## 8. SETUP GHOST AI (HANTU)
 
-### 8.1 Membuat GameObject Ghost
+## 🔧 STEP-BY-STEP SETUP
 
-#### A. Buat Ghost Model
-1. **GameObject > 3D Object > Capsule** (atau import 3D model hantu)
-2. Rename: `Ghost_01`
-3. **Tag:** Ghost
-4. **Layer:** Ghost
-5. Transform:
-   - **Scale:** (1, 1.5, 1) - lebih tinggi dari player
+### STEP 1: Setup Node.cs
+Pastikan file `Node.cs` ada dengan kode berikut:
 
-#### B. Tambahkan Collider
-1. Jika pakai capsule, sudah ada **Capsule Collider**
-2. **JANGAN centang Is Trigger** (untuk collision damage)
-3. Atau bisa pakai trigger terpisah untuk damage detection
-
-#### C. Material & Visual
-1. Buat material hitam/putih transparan dengan Emission
-2. Tambahkan **Particle System** untuk efek smoke/aura (optional)
-
-### 8.2 Membuat Node Grid untuk Pathfinding
-
-⚠️ **PENTING:** GhostAI menggunakan algoritma Dijkstra dengan Node Grid!
-
-#### A. Membuat Node Script (jika belum ada)
-Buat script `Node.cs`:
 ```csharp
 using UnityEngine;
 
@@ -350,6 +330,7 @@ public class Node
 {
     public Vector3 position;
     public bool isWalkable = true;
+    [System.NonSerialized]
     public Node[] neighbors;
 
     public Node(Vector3 pos)
@@ -359,69 +340,563 @@ public class Node
 }
 ```
 
-#### B. Membuat Grid Builder (Manual Setup)
-1. Buat Empty GameObject: `GridManager`
-2. Buat script `GridBuilder.cs` untuk generate grid otomatis
-3. Atau **MANUAL** (untuk pembelajaran):
-   - Buat Empty GameObjects sebagai nodes
-   - Position di intersection/junction labirin
-   - Hubungkan neighbors manual via script
+**Penting:** `[System.NonSerialized]` di neighbors mencegah circular reference error!
 
-#### C. Setup Grid di Inspector
-1. Pilih `Ghost_01`
-2. **Add Component > Ghost AI**
-3. Setting:
-   - **Player:** Drag `Player` GameObject
-   - **Grid:** Assign Node[,] array (complex - bisa lewat GridBuilder)
-   - **Chase Range:** 
-     - Easy: 8
-     - Normal: 12
-     - Hard: 15
-   - **Move Speed:**
-     - Easy: 3
-     - Normal: 4
-     - Hard: 5
-   - **Node Reach Threshold:** 0.1
+---
 
-### 8.3 Duplikasi Ghost untuk Difficulty
-Sesuai design:
-- **Easy:** 2 ghost
-- **Normal:** 3 ghost
-- **Hard:** 4 ghost
+### STEP 2: Setup Grid Manager
+1. Buat Empty GameObject: **GameObject > Create Empty**
+2. Rename: **GridManager**
+3. Add Component > **GridBuilder**
+4. Setting di Inspector:
+   ```
+   Grid Width: 20 (sesuaikan dengan lebar labirin Anda)
+   Grid Height: 20 (sesuaikan dengan panjang labirin Anda)
+   Node Spacing: 2 (jarak antar node dalam unit)
+   Grid Origin: (0, 0, 0) (titik awal grid, sesuaikan posisi labirin)
+   Unwalkable Mask: Wall (pilih layer Wall/Obstacle)
+   Node Radius: 0.5 (radius deteksi obstacle)
+   Show Gizmos: ✓ (centang untuk visualisasi)
+   Walkable Color: Green
+   Unwalkable Color: Red
+   ```
 
-1. Duplicate `Ghost_01`: **Ctrl+D**
-2. Rename: `Ghost_02`, `Ghost_03`, dst
-3. Posisikan di spawn point berbeda
+**Tips:** Posisikan Grid Origin di pojok kiri bawah labirin untuk hasil terbaik.
 
-### 8.4 Damage System Ghost
-1. Tambahkan script `GhostDamage.cs`:
+---
+
+### STEP 3: Setup Layer untuk Wall
+1. Buat Layer baru:
+   - **Edit > Project Settings > Tags and Layers**
+   - Cari slot kosong di "Layers"
+   - Tambahkan layer: **Wall**
+
+2. Assign layer ke semua wall:
+   - Pilih semua GameObject wall di labirin
+   - Di Inspector, ubah Layer menjadi **Wall**
+
+**Penting:** Tanpa ini, ghost akan bisa jalan tembus dinding!
+
+---
+
+### STEP 4: Setup Player
+1. Pilih Player GameObject di Hierarchy
+2. **Tag:** Ubah menjadi **Player** (sangat penting!)
+3. Add Component > **PlayerHealth** (jika belum ada)
+4. Setting PlayerHealth:
+   ```
+   Max Health: 100
+   Current Health: (akan auto-set ke 100)
+   Health Bar: (optional, assign UI Slider jika ada)
+   ```
+
+---
+
+### STEP 5: Setup Ghost
+#### A. Buat Ghost Model
+1. **GameObject > 3D Object > Capsule**
+2. Rename: **Ghost_01**
+3. Tag: **Ghost**
+4. Transform:
+   - Position: Letakkan di spawn point ghost
+   - Rotation: (0, 0, 0)
+   - Scale: (1, 1.5, 1) ← Lebih tinggi dari player
+
+#### B. Material Ghost (Agar Terlihat Hantu)
+1. Buat material baru:
+   - Klik kanan di Assets > **Create > Material**
+   - Rename: **GhostMaterial**
+   
+2. Setting Material:
+   - **Rendering Mode:** Transparent (atau Fade)
+   - **Albedo:** Pilih warna hitam/putih
+   - **Alpha:** 0.5 (semi-transparan)
+   - **Emission:** Centang ✓
+   - **Emission Color:** Pilih warna terang (merah/biru/hijau)
+   
+3. Drag **GhostMaterial** ke Ghost_01
+
+#### C. Add Components ke Ghost_01
+
+**1. Rigidbody:**
+- Add Component > **Rigidbody**
+- Setting:
+  ```
+  Mass: 1
+  Drag: 0
+  Angular Drag: 0.05
+  Use Gravity: ✓
+  Is Kinematic: ✓ (centang agar AI control penuh)
+  Interpolate: None
+  Collision Detection: Discrete
+  Constraints:
+    - Freeze Rotation X: ✓
+    - Freeze Rotation Y: ✗ (biarkan unchecked agar bisa rotate)
+    - Freeze Rotation Z: ✓
+  ```
+
+**2. Capsule Collider:**
+- Sudah ada default, pastikan setting:
+  ```
+  Is Trigger: ✗ (UNCHECK untuk collision damage)
+  Radius: 0.5
+  Height: 2
+  ```
+
+**3. GhostAI:**
+- Add Component > **GhostAI**
+- Setting:
+  ```
+  Player: Drag Player GameObject dari Hierarchy
+  Grid Builder: Drag GridManager dari Hierarchy
+  
+  Chase Range:
+    - Easy: 8
+    - Normal: 12
+    - Hard: 15
+  
+  Move Speed:
+    - Easy: 3
+    - Normal: 4
+    - Hard: 5
+  
+  Node Reach Threshold: 0.1
+  Path Update Interval: 0.5
+  ```
+
+**4. GhostDamage:**
+- Add Component > **GhostDamage**
+- Setting:
+  ```
+  Damage Amount: 20
+  Damage Cooldown: 2
+  ```
+
+---
+
+### STEP 6: Duplikasi Ghost untuk Difficulty
+
+Sesuai desain game:
+- **Easy Mode:** 2 ghost
+- **Normal Mode:** 3 ghost  
+- **Hard Mode:** 4 ghost
+
+**Cara Duplikasi:**
+1. Pilih **Ghost_01** di Hierarchy
+2. Tekan **Ctrl + D** untuk duplicate
+3. Rename: **Ghost_02**
+4. Ubah Position ke spawn point berbeda
+5. Ulangi untuk Ghost_03, Ghost_04, dst
+
+**Rekomendasi Spawn Point:**
+- Letakkan ghost di sudut-sudut berbeda labirin
+- Jangan terlalu dekat dengan spawn point player
+- Pastikan spawn di area walkable (hijau di grid visualization)
+
+---
+
+### STEP 7: Testing & Kalibrasi
+
+#### A. Visualisasi Grid (Scene View)
+1. Play Mode atau di Scene View
+2. Pilih **GridManager**
+3. Lihat Gizmos (pastikan icon Gizmos aktif di Scene view):
+   - **Hijau** = Walkable nodes (ghost bisa lewat)
+   - **Merah** = Unwalkable nodes (ada wall)
+   - **Cyan Lines** = Koneksi neighbors antar node
+
+4. Jika grid tidak sesuai:
+   - Adjust Grid Origin
+   - Adjust Grid Width/Height
+   - Adjust Node Spacing
+
+#### B. Visualisasi Ghost Path
+1. Play Mode
+2. Pilih salah satu Ghost
+3. Lihat Gizmos:
+   - **Yellow Lines** = Path yang sedang diikuti ghost
+   - **Red Sphere** = Chase range area
+
+#### C. Test Ghost Chase
+1. **Play** game
+2. Jalan mendekati ghost
+3. **Expected behavior:**
+   - Ghost mulai chase saat player masuk chase range
+   - Ghost mengikuti path menuju player
+   - Ghost rotate menghadap player
+   - Path update setiap 0.5 detik
+
+#### D. Test Damage System
+1. Biarkan ghost menyentuh player
+2. Check **Console** (Window > General > Console):
+   - Harus muncul: `"Ghost damaged player for 20 HP!"`
+   - Player HP berkurang setiap 2 detik
+3. Check Player Health di Inspector saat Play Mode
+
+#### E. Kalibrasi Parameter
+
+**Jika ghost terlalu lambat:**
+- Naikkan **Move Speed** di GhostAI
+
+**Jika ghost terlalu agresif:**
+- Kurangi **Chase Range** di GhostAI
+
+**Jika path tidak smooth:**
+- Kurangi **Node Spacing** (misal 1.5 atau 1)
+- Tapi jangan terlalu kecil (berat untuk CPU)
+
+**Jika ghost stuck/tidak bergerak:**
+- Pastikan semua wall ada di layer "Wall"
+- Pastikan Ghost spawn di area walkable (hijau)
+- Check **Node Reach Threshold** tidak terlalu kecil (default 0.1)
+
+**Jika ghost menembus dinding:**
+- Pastikan wall punya Collider
+- Pastikan wall layer = "Wall"
+- Set **Unwalkable Mask** di GridBuilder = Wall
+
+**Jika path tidak update:**
+- Check **Path Update Interval** (default 0.5 detik)
+- Pastikan player bergerak cukup jauh
+
+---
+
+## ⚙️ PARAMETER TUNING BERDASARKAN DIFFICULTY
+
+### 🟢 Easy Mode
+```
+Ghost Count: 2
+Chase Range: 8
+Move Speed: 3
+Damage Amount: 15
+Damage Cooldown: 2.5
+Node Spacing: 2.5 (lebih lebar, path kurang optimal)
+```
+
+### 🟡 Normal Mode
+```
+Ghost Count: 3
+Chase Range: 12
+Move Speed: 4
+Damage Amount: 20
+Damage Cooldown: 2
+Node Spacing: 2
+```
+
+### 🔴 Hard Mode
+```
+Ghost Count: 4
+Chase Range: 15
+Move Speed: 5
+Damage Amount: 25
+Damage Cooldown: 1.5
+Node Spacing: 1.5 (lebih rapat, path lebih optimal)
+Path Update Interval: 0.3 (update lebih sering)
+```
+
+---
+
+## 🐛 TROUBLESHOOTING COMMON ISSUES
+
+### Problem: Grid tidak terlihat di Scene view
+**Solution:** 
+- Centang "Show Gizmos" di GridBuilder Inspector
+- Pastikan icon Gizmos aktif di Scene view (pojok kanan atas)
+
+---
+
+### Problem: Ghost tidak chase player
+**Solution:** 
+1. Pastikan Player tag = "Player" (case-sensitive!)
+2. Pastikan Grid Builder ter-assign di GhostAI Inspector
+3. Check chase range cukup besar untuk testing (coba 20)
+4. Check Console untuk error messages
+
+---
+
+### Problem: Ghost menembus dinding
+**Solution:**
+1. Pastikan semua wall GameObject punya **Collider** component
+2. Pastikan semua wall di layer **"Wall"**
+3. Set **Unwalkable Mask** di GridBuilder = Wall layer
+4. Check Node Radius cukup besar (minimal 0.5)
+
+---
+
+### Problem: Ghost stuck di tempat tidak bergerak
+**Solution:**
+1. Pastikan Ghost spawn di area walkable (node hijau, bukan merah)
+2. Kurangi Node Spacing (coba 1.5 atau 1)
+3. Check **Node Reach Threshold** tidak terlalu kecil (gunakan 0.1-0.5)
+4. Pastikan **Is Kinematic** di Rigidbody tercentang
+5. Check Console untuk error: "GridBuilder tidak ditemukan!"
+
+---
+
+### Problem: Path tidak update saat player bergerak
+**Solution:**
+1. Check **Path Update Interval** di GhostAI (default 0.5)
+2. Pastikan player bergerak cukup jauh (lebih dari 1 node)
+3. Turunkan Path Update Interval ke 0.3 untuk update lebih responsif
+
+---
+
+### Problem: Damage tidak bekerja
+**Solution:**
+1. Pastikan Player punya **PlayerHealth** component
+2. Pastikan Player tag = "Player" (case-sensitive!)
+3. Check **Capsule Collider** di Ghost: **Is Trigger HARUS UNCHECK**
+4. Pastikan GhostDamage script attached ke Ghost
+5. Check Console untuk warning: "PlayerHealth component tidak ditemukan!"
+
+---
+
+### Problem: Error "GridBuilder tidak ditemukan!"
+**Solution:**
+1. Pastikan ada GameObject dengan **GridBuilder** script di scene
+2. Assign GridBuilder ke GhostAI Inspector secara manual
+3. Atau rename GameObject menjadi "GridManager" untuk auto-detect
+
+---
+
+### Problem: Error "Serialization depth limit exceeded"
+**Solution:**
+1. Pastikan Node.cs punya `[System.NonSerialized]` di field neighbors
+2. Code harus seperti ini:
+```csharp
+[System.NonSerialized]
+public Node[] neighbors;
+```
+
+---
+
+### Problem: Ghost terlalu lambat/cepat
+**Solution:**
+- Adjust **Move Speed** di GhostAI (3-5 adalah range bagus)
+- Jika masih lambat, check Time.deltaTime dalam FollowPath
+
+---
+
+### Problem: FPS drop / lag saat banyak ghost
+**Solution:**
+1. Kurangi jumlah ghost
+2. Naikkan **Path Update Interval** (misal 0.7 atau 1)
+3. Perbesar **Node Spacing** (kurangi total nodes)
+4. Gunakan **Node Reach Threshold** lebih besar (0.5)
+
+---
+
+## 🎯 FITUR TAMBAHAN (OPTIONAL)
+
+### 1. Ghost Patrol Mode (Idle Behavior)
+Tambahkan patrol saat ghost tidak chase:
+```csharp
+// Di GhostAI.cs, tambahkan:
+public Transform[] patrolPoints;
+private int currentPatrolIndex = 0;
+
+// Di Update(), saat isChasing = false:
+if (!isChasing)
+{
+    Patrol();
+}
+
+void Patrol()
+{
+    if (patrolPoints.Length == 0) return;
+    
+    Vector3 target = patrolPoints[currentPatrolIndex].position;
+    transform.position = Vector3.MoveTowards(transform.position, target, moveSpeed * 0.5f * Time.deltaTime);
+    
+    if (Vector3.Distance(transform.position, target) < 0.5f)
+    {
+        currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Length;
+    }
+}
+```
+
+### 2. Sound Effects
+```csharp
+// Tambahkan di GhostAI.cs:
+public AudioClip chaseSound;
+public AudioClip attackSound;
+private AudioSource audioSource;
+
+void Start()
+{
+    audioSource = gameObject.AddComponent<AudioSource>();
+    audioSource.loop = true;
+}
+
+// Di Update():
+if (isChasing && !audioSource.isPlaying)
+{
+    audioSource.clip = chaseSound;
+    audioSource.Play();
+}
+else if (!isChasing && audioSource.isPlaying)
+{
+    audioSource.Stop();
+}
+```
+
+### 3. Visual Effects - Particle Trail
+1. Add Component > **Particle System** ke Ghost
+2. Setting:
+   ```
+   Duration: 1
+   Looping: ✓
+   Start Lifetime: 0.5
+   Start Speed: 0
+   Start Size: 0.3
+   Start Color: Sama dengan emission ghost
+   Emission Rate: 20
+   ```
+
+### 4. Flash Effect saat Player Kena Damage
+```csharp
+// Di PlayerHealth.cs, tambahkan:
+public Renderer playerRenderer;
+public float flashDuration = 0.1f;
+
+public void TakeDamage(int damage)
+{
+    currentHealth -= damage;
+    currentHealth = Mathf.Max(currentHealth, 0);
+    
+    StartCoroutine(FlashEffect());
+    
+    Debug.Log($"Player HP: {currentHealth}/{maxHealth}");
+    UpdateHealthUI();
+    
+    if (currentHealth <= 0)
+    {
+        Die();
+    }
+}
+
+IEnumerator FlashEffect()
+{
+    Color original = playerRenderer.material.color;
+    playerRenderer.material.color = Color.red;
+    yield return new WaitForSeconds(flashDuration);
+    playerRenderer.material.color = original;
+}
+```
+
+### 5. Difficulty Manager Script
 ```csharp
 using UnityEngine;
 
-public class GhostDamage : MonoBehaviour
+public class DifficultyManager : MonoBehaviour
 {
-    public int damageAmount = 20;
-    public float damageCooldown = 2f;
-    private float lastDamageTime;
-
-    private void OnCollisionStay(Collision collision)
+    public enum Difficulty { Easy, Normal, Hard }
+    public Difficulty currentDifficulty = Difficulty.Normal;
+    
+    public GhostAI[] allGhosts;
+    
+    void Start()
     {
-        if (collision.gameObject.CompareTag("Player"))
+        ApplyDifficulty();
+    }
+    
+    void ApplyDifficulty()
+    {
+        int activeGhostCount = 0;
+        float chaseRange = 12f;
+        float moveSpeed = 4f;
+        
+        switch (currentDifficulty)
         {
-            if (Time.time - lastDamageTime > damageCooldown)
+            case Difficulty.Easy:
+                activeGhostCount = 2;
+                chaseRange = 8f;
+                moveSpeed = 3f;
+                break;
+            case Difficulty.Normal:
+                activeGhostCount = 3;
+                chaseRange = 12f;
+                moveSpeed = 4f;
+                break;
+            case Difficulty.Hard:
+                activeGhostCount = 4;
+                chaseRange = 15f;
+                moveSpeed = 5f;
+                break;
+        }
+        
+        for (int i = 0; i < allGhosts.Length; i++)
+        {
+            if (i < activeGhostCount)
             {
-                PlayerHealth ph = collision.gameObject.GetComponent<PlayerHealth>();
-                if (ph != null)
-                {
-                    ph.TakeDamage(damageAmount);
-                    lastDamageTime = Time.time;
-                }
+                allGhosts[i].gameObject.SetActive(true);
+                allGhosts[i].chaseRange = chaseRange;
+                allGhosts[i].moveSpeed = moveSpeed;
+            }
+            else
+            {
+                allGhosts[i].gameObject.SetActive(false);
             }
         }
     }
 }
 ```
-2. **Add Component > Ghost Damage** ke setiap Ghost
+
+---
+
+## ✅ CHECKLIST FINAL SEBELUM BUILD
+
+- [ ] **Node.cs** exists dengan `[System.NonSerialized]` di neighbors
+- [ ] **GridManager** di scene dengan GridBuilder component
+- [ ] Layer **"Wall"** dibuat dan assigned ke semua wall
+- [ ] **Player** tag = "Player" dan punya PlayerHealth component
+- [ ] **Ghost_01** setup lengkap:
+  - [ ] Rigidbody (Is Kinematic = ✓)
+  - [ ] Capsule Collider (Is Trigger = ✗)
+  - [ ] GhostAI (Player & GridBuilder assigned)
+  - [ ] GhostDamage
+  - [ ] Material transparan dengan emission
+- [ ] Ghost diduplikasi sesuai difficulty (Easy: 2, Normal: 3, Hard: 4)
+- [ ] Grid visualization terlihat di Scene view (hijau/merah nodes)
+- [ ] **Test:** Ghost chase player saat dalam chase range ✓
+- [ ] **Test:** Ghost mengikuti path dengan smooth ✓
+- [ ] **Test:** Damage system working (check Console) ✓
+- [ ] **Test:** Player death saat HP = 0 ✓
+- [ ] Kalibrasi speed & range sesuai difficulty ✓
+- [ ] FPS stabil (tidak lag) ✓
+
+---
+
+## 📊 PERFORMANCE OPTIMIZATION TIPS
+
+1. **Grid Size:** Jangan terlalu besar, idealnya 15x15 sampai 25x25
+2. **Node Spacing:** Gunakan 2-3 untuk balance antara akurasi dan performa
+3. **Path Update Interval:** 0.5-1 detik sudah cukup responsif
+4. **Ghost Count:** Maksimal 5 ghost untuk performa smooth
+5. **Collision Detection:** Gunakan Discrete, bukan Continuous
+
+---
+
+## 🎓 KONSEP ALGORITMA DIJKSTRA
+
+**Dijkstra Algorithm** mencari jalur terpendek dari start node ke target node:
+
+1. **Initialize:** Set jarak semua node = infinity, kecuali start = 0
+2. **Loop:** Pilih node dengan jarak terkecil yang belum dikunjungi
+3. **Update:** Hitung jarak ke neighbors, update jika lebih pendek
+4. **Repeat:** Sampai target node dikunjungi
+5. **Reconstruct:** Trace back path dari target ke start
+
+**Kelebihan untuk game:**
+- Selalu menemukan jalur terpendek
+- Cocok untuk grid-based movement
+- Tidak butuh heuristic (berbeda dari A*)
+
+**Kekurangan:**
+- Lebih lambat dari A* untuk grid besar
+- Explore banyak node yang tidak perlu
+
+**Alternative:** Bisa upgrade ke **A*** dengan menambahkan heuristic (Manhattan/Euclidean distance) untuk performa lebih baik.
 
 ---
 
