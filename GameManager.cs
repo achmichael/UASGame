@@ -13,7 +13,9 @@ public class GameManager : MonoBehaviour
 
     [Header("Collectibles")]
     public int collectedCount = 0;
-    public int totalCollectibles = 5;
+    public int totalCollectibles = 30; // Default 30 lembaran
+    public bool autoDetectCollectibles = true; // Auto-count items di scene
+    public GameObject collectiblePrefab; // Optional: prefab untuk auto-spawn
 
     [Header("Player")]
     public int playerLives = 3;
@@ -49,14 +51,22 @@ public class GameManager : MonoBehaviour
                 break;
             case 1: // Normal
                 playerLives = 4;
+                totalCollectibles = 30;
                 // Activate 2 ghosts
                 ActivateGhosts(2);
                 break;
             case 2: // Hard
                 playerLives = 3;
+                totalCollectibles = 30;
                 // Activate 3 ghosts
                 ActivateGhosts(3);
                 break;
+        }
+
+        // Auto-detect dan sync total collectibles dengan item di scene
+        if (autoDetectCollectibles)
+        {
+            SyncCollectiblesCount();
         }
 
         // Try find HUD in scene if not manually assigned
@@ -80,6 +90,99 @@ public class GameManager : MonoBehaviour
         }
 
         UpdateHUD();
+    }
+    
+    void SyncCollectiblesCount()
+    {
+        // Hitung total CollectibleItem yang ada di scene
+        CollectibleItem[] items = FindObjectsOfType<CollectibleItem>();
+        int itemsInScene = items.Length;
+        
+        Debug.Log($"[GameManager] Collectibles di scene: {itemsInScene}, Target: {totalCollectibles}");
+        
+        if (itemsInScene == 0)
+        {
+            Debug.LogWarning("[GameManager] PERINGATAN: Tidak ada CollectibleItem di scene!");
+            Debug.LogWarning("[GameManager] Tambahkan CollectibleItem atau assign collectiblePrefab untuk auto-spawn.");
+        }
+        else if (itemsInScene < totalCollectibles)
+        {
+            Debug.LogWarning($"[GameManager] PERINGATAN: Collectibles di scene ({itemsInScene}) kurang dari target ({totalCollectibles})!");
+            
+            // Coba auto-spawn jika prefab tersedia
+            if (collectiblePrefab != null)
+            {
+                int needed = totalCollectibles - itemsInScene;
+                Debug.Log($"[GameManager] Auto-spawning {needed} collectibles...");
+                SpawnCollectibles(needed);
+            }
+            else
+            {
+                // Sync ke jumlah aktual
+                Debug.Log($"[GameManager] Menyesuaikan totalCollectibles ke {itemsInScene}");
+                totalCollectibles = itemsInScene;
+            }
+        }
+        else if (itemsInScene > totalCollectibles)
+        {
+            Debug.LogWarning($"[GameManager] INFO: Collectibles di scene ({itemsInScene}) lebih banyak dari target ({totalCollectibles}).");
+            Debug.Log($"[GameManager] Menyesuaikan totalCollectibles ke {itemsInScene}");
+            totalCollectibles = itemsInScene;
+        }
+        else
+        {
+            Debug.Log($"[GameManager] ✓ Collectibles count sesuai: {totalCollectibles}");
+        }
+    }
+    
+    void SpawnCollectibles(int count)
+    {
+        if (collectiblePrefab == null)
+        {
+            Debug.LogError("[GameManager] collectiblePrefab tidak di-assign! Tidak bisa spawn items.");
+            return;
+        }
+        
+        // Posisi spawn default - sesuaikan dengan map Anda
+        // Atau gunakan spawn zones yang sudah ada
+        Vector3[] spawnPositions = GenerateSpawnPositions(count);
+        
+        for (int i = 0; i < count && i < spawnPositions.Length; i++)
+        {
+            GameObject item = Instantiate(collectiblePrefab, spawnPositions[i], Quaternion.identity);
+            item.name = $"Lembaran_AlQuran_{i + 1}";
+            Debug.Log($"[GameManager] Spawned collectible at {spawnPositions[i]}");
+        }
+        
+        Debug.Log($"[GameManager] ✓ Spawned {count} collectibles successfully!");
+    }
+    
+    Vector3[] GenerateSpawnPositions(int count)
+    {
+        // Generate posisi spawn secara prosedural
+        // Bisa disesuaikan dengan layout map Anda
+        Vector3[] positions = new Vector3[count];
+        
+        // Contoh: Spawn dalam grid pattern
+        int gridSize = Mathf.CeilToInt(Mathf.Sqrt(count));
+        float spacing = 5f; // Jarak antar item
+        
+        for (int i = 0; i < count; i++)
+        {
+            int x = i % gridSize;
+            int z = i / gridSize;
+            
+            // Posisi dengan sedikit random offset
+            Vector3 pos = new Vector3(
+                x * spacing + Random.Range(-1f, 1f),
+                1f, // Height di atas ground
+                z * spacing + Random.Range(-1f, 1f)
+            );
+            
+            positions[i] = pos;
+        }
+        
+        return positions;
     }
 
     void ActivateGhosts(int count)
