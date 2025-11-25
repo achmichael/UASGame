@@ -13,6 +13,10 @@ public class GhostAI : MonoBehaviour
     public float moveSpeed = 4f;
     public float nodeReachThreshold = 0.1f;
     public float pathUpdateInterval = 0.5f;  // Update path setiap 0.5 detik
+    
+    [Header("Path Separation Settings")]
+    public float occupiedNodePenalty = 10f;  // Penalty untuk node yang sudah dipakai ghost lain
+    public float personalSpaceRadius = 1.5f; // Jarak minimum antar ghost
 
     [Header("States")]
     public bool isChasing = false;
@@ -21,6 +25,7 @@ public class GhostAI : MonoBehaviour
     private List<Node> currentPath;
     private int currentPathIndex = 0;
     private float lastPathUpdateTime;
+    private Node currentNode = null;  // Node yang sedang ditempati
 
     void Start()
     {
@@ -49,6 +54,9 @@ public class GhostAI : MonoBehaviour
     {
         if (player == null || gridBuilder == null || gridBuilder.grid == null) return;
 
+        // Update node reservation
+        UpdateNodeReservation();
+
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
         // Check apakah player dalam chase range
@@ -69,7 +77,51 @@ public class GhostAI : MonoBehaviour
         else
         {
             isChasing = false;
+            ReleaseAllReservations();
             currentPath = null;
+        }
+    }
+    
+    void UpdateNodeReservation()
+    {
+        Node newNode = gridBuilder.GetNodeFromWorldPosition(transform.position);
+        
+        if (newNode != currentNode)
+        {
+            // Release old node
+            if (currentNode != null)
+            {
+                currentNode.Release(this);
+            }
+            
+            // Reserve new node
+            if (newNode != null)
+            {
+                newNode.Reserve(this);
+                currentNode = newNode;
+            }
+        }
+        else if (currentNode != null)
+        {
+            // Update timestamp
+            currentNode.Reserve(this);
+        }
+    }
+    
+    void ReleaseAllReservations()
+    {
+        if (currentNode != null)
+        {
+            currentNode.Release(this);
+            currentNode = null;
+        }
+        
+        if (currentPath != null)
+        {
+            foreach (Node node in currentPath)
+            {
+                node.Release(this);
+            }
         }
     }
 
@@ -130,7 +182,18 @@ public class GhostAI : MonoBehaviour
                     if (!unvisited.Contains(neighbor)) continue;
 
                     float distance = Vector3.Distance(current.position, neighbor.position);
-                    float alt = distances[current] + distance;
+                    
+                    // TAMBAHAN: Penalty untuk node yang sudah dipakai ghost lain
+                    float penalty = 0f;
+                    if (neighbor.IsOccupied(this))
+                    {
+                        penalty = occupiedNodePenalty;
+                    }
+                    
+                    // TAMBAHAN: Penalty tambahan jika ada ghost lain terlalu dekat
+                    penalty += GetProximityPenalty(neighbor.position);
+                    
+                    float alt = distances[current] + distance + penalty;
 
                     if (alt < distances[neighbor])
                     {
@@ -154,6 +217,28 @@ public class GhostAI : MonoBehaviour
         path.Reverse();
         return path.Count > 0 ? path : null;
     }
+    
+    // Hitung penalty berdasarkan jarak ke ghost lain
+    float GetProximityPenalty(Vector3 position)
+    {
+        float penalty = 0f;
+        GhostAI[] otherGhosts = FindObjectsOfType<GhostAI>();
+        
+        foreach (GhostAI ghost in otherGhosts)
+        {
+            if (ghost == this) continue;
+            
+            float distance = Vector3.Distance(position, ghost.transform.position);
+            
+            // Jika ghost lain terlalu dekat, tambah penalty
+            if (distance < personalSpaceRadius)
+            {
+                penalty += (personalSpaceRadius - distance) * 5f;
+            }
+        }
+        
+        return penalty;
+    }
 
     void FollowPath()
     {
@@ -168,6 +253,13 @@ public class GhostAI : MonoBehaviour
 
         Node targetNode = currentPath[currentPathIndex];
         Vector3 targetPosition = new Vector3(targetNode.position.x, transform.position.y, targetNode.position.z);
+        
+        // TAMBAHAN: Collision avoidance dengan ghost lain
+        Vector3 avoidanceVector = GetAvoidanceVector();
+        if (avoidanceVector != Vector3.zero)
+        {
+            targetPosition += avoidanceVector;
+        }
 
         // Move ke target node
         transform.position = Vector3.MoveTowards(transform.position, targetPosition, moveSpeed * Time.deltaTime);
@@ -185,6 +277,38 @@ public class GhostAI : MonoBehaviour
         {
             currentPathIndex++;
         }
+    }
+    
+    // Real-time collision avoidance dengan ghost lain
+    Vector3 GetAvoidanceVector()
+    {
+        Vector3 avoidance = Vector3.zero;
+        GhostAI[] otherGhosts = FindObjectsOfType<GhostAI>();
+        
+        foreach (GhostAI ghost in otherGhosts)
+        {
+            if (ghost == this) continue;
+            
+            Vector3 toOther = ghost.transform.position - transform.position;
+            float distance = toOther.magnitude;
+            
+            // Jika terlalu dekat, hindari
+            if (distance < personalSpaceRadius && distance > 0.1f)
+            {
+                // Push away dari ghost lain
+                Vector3 pushDirection = -toOther.normalized;
+                float pushStrength = (personalSpaceRadius - distance) / personalSpaceRadius;
+                avoidance += pushDirection * pushStrength * 0.5f;
+            }
+        }
+        
+        return avoidance;
+    }
+    
+    void OnDestroy()
+    {
+        // Cleanup reservations saat ghost dihancurkan
+        ReleaseAllReservations();
     }
 
     // Visualisasi path di Scene view
