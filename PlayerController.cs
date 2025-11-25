@@ -21,6 +21,10 @@ public class PlayerController : MonoBehaviour
     private CharacterController controller;
     private Vector3 velocity;
     private bool isGrounded;
+    
+    // Collision control
+    private bool isCollidingWithEnemy = false;
+    private float collisionCooldown = 0f;
 
     // Ground check helpers (optional: better ground detection)
     public Transform groundCheck;
@@ -35,6 +39,16 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
+        // Update collision cooldown
+        if (collisionCooldown > 0)
+        {
+            collisionCooldown -= Time.deltaTime;
+            if (collisionCooldown <= 0)
+            {
+                isCollidingWithEnemy = false;
+            }
+        }
+        
         // Mengecek apakah player menyentuh tanah
         if (groundCheck != null)
         {
@@ -56,8 +70,11 @@ public class PlayerController : MonoBehaviour
         Vector3 move = transform.right * x + transform.forward * z;
         // Normalisasi diagonal movement jika diperlukan (CharacterController.Move menangani deltaTime)
         if (move.magnitude > 1f) move = move.normalized;
+        
+        // Kurangi speed saat collision dengan enemy untuk mencegah stuck
+        float currentSpeed = isCollidingWithEnemy ? speed * 0.3f : speed;
 
-        controller.Move(move * speed * Time.deltaTime);
+        controller.Move(move * currentSpeed * Time.deltaTime);
 
         // Lompat
         if (Input.GetButtonDown("Jump") && isGrounded)
@@ -66,6 +83,22 @@ public class PlayerController : MonoBehaviour
         // Gravitasi
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
+    }
+
+    // Deteksi collision dengan CharacterController
+    void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        // Check jika menabrak ghost
+        if (hit.gameObject.CompareTag("Ghost"))
+        {
+            isCollidingWithEnemy = true;
+            collisionCooldown = 0.3f; // Reset cooldown
+            
+            // Push player away dari ghost
+            Vector3 pushDirection = (transform.position - hit.transform.position).normalized;
+            pushDirection.y = 0;
+            controller.Move(pushDirection * 2f * Time.deltaTime);
+        }
     }
 
     // Optional: public API to disable movement (for cutscenes)
