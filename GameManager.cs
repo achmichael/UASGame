@@ -21,6 +21,7 @@ public class GameManager : MonoBehaviour
 
     [Header("References")]
     public HUDController hudController;
+    public GameObject ghostPrefab; // Assign Ghost prefab di Inspector
 
     private void Awake()
     {
@@ -35,6 +36,29 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
+
+        int difficulty = PlayerPrefs.GetInt("Difficulty", 0); // default Easy
+        Debug.Log("Game Difficulty Level: " + difficulty);
+        switch (difficulty)
+        {
+            case 0: // Easy
+                playerLives = 5;
+                totalCollectibles = 30;
+                // Activate 1 ghosts only
+                ActivateGhosts(1);
+                break;
+            case 1: // Normal
+                playerLives = 4;
+                // Activate 2 ghosts
+                ActivateGhosts(2);
+                break;
+            case 2: // Hard
+                playerLives = 3;
+                // Activate 3 ghosts
+                ActivateGhosts(3);
+                break;
+        }
+
         // Try find HUD in scene if not manually assigned
         if (hudController == null)
             hudController = FindObjectOfType<HUDController>();
@@ -56,6 +80,45 @@ public class GameManager : MonoBehaviour
         }
 
         UpdateHUD();
+    }
+
+    void ActivateGhosts(int count)
+    {
+        GameObject[] ghosts = GameObject.FindGameObjectsWithTag("Ghost");
+        Debug.Log("Found " + ghosts.Length + " ghosts in scene, need " + count);
+        
+        // Jika ghost di scene kurang dari yang dibutuhkan, spawn ghost baru
+        if (ghostPrefab != null && ghosts.Length < count)
+        {
+            int needed = count - ghosts.Length;
+            Debug.Log("Spawning " + needed + " additional ghosts...");
+            
+            // Spawn posisi default - sesuaikan dengan map Anda
+            Vector3[] spawnPositions = new Vector3[]
+            {
+                new Vector3(10, 1, 10),
+                new Vector3(-10, 1, 10),
+                new Vector3(10, 1, -10),
+                new Vector3(-10, 1, -10)
+            };
+            
+            for (int i = 0; i < needed && i < spawnPositions.Length; i++)
+            {
+                GameObject newGhost = Instantiate(ghostPrefab, spawnPositions[i], Quaternion.identity);
+                newGhost.tag = "Ghost";
+                newGhost.name = "Ghost_" + (ghosts.Length + i + 1);
+            }
+            
+            // Refresh ghost list setelah spawn
+            ghosts = GameObject.FindGameObjectsWithTag("Ghost");
+        }
+        
+        // Activate/deactivate ghosts sesuai difficulty
+        Debug.Log("Activating " + count + " ghosts out of " + ghosts.Length);
+        for (int i = 0; i < ghosts.Length; i++)
+        {
+            ghosts[i].SetActive(i < count);
+        }
     }
 
     public void AddCollectedItem()
@@ -123,20 +186,20 @@ public class GameManager : MonoBehaviour
     void TriggerNormalEnding()
     {
         // Find CutsceneController and play normal ending if present
-        CutsceneController cs = FindObjectOfType<CutsceneController>();
-        if (cs != null)
-            cs.PlayNormalEnding();
-        else
-            SceneManager.LoadScene("NormalEndingScene");
+        // CutsceneController cs = FindObjectOfType<CutsceneController>();
+        // if (cs != null)
+        //     cs.PlayNormalEnding();
+        // else
+        //     SceneManager.LoadScene("NormalEndingScene");
     }
 
     public void TriggerSecretEnding()
     {
-        CutsceneController cs = FindObjectOfType<CutsceneController>();
-        if (cs != null)
-            cs.PlaySecretEnding();
-        else
-            SceneManager.LoadScene("SecretEndingScene");
+        // CutsceneController cs = FindObjectOfType<CutsceneController>();
+        // if (cs != null)
+        //     cs.PlaySecretEnding();
+        // else
+        //     SceneManager.LoadScene("SecretEndingScene");
     }
 
     void UpdateHUD()

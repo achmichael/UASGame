@@ -14,7 +14,7 @@ public class GridBuilder : MonoBehaviour
     public LayerMask unwalkableMask;  // Layer untuk wall/obstacle
     public float nodeRadius = 0.5f;   // Radius check untuk obstacle
     
-        [Header("Visualization")]
+    [Header("Visualization")]
     public bool showGizmos = true;
     public Color walkableColor = Color.green;
     public Color unwalkableColor = Color.red;
