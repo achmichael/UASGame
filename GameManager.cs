@@ -24,6 +24,7 @@ public class GameManager : MonoBehaviour
     [Header("References")]
     public HUDController hudController;
     public GameObject ghostPrefab; // Assign Ghost prefab di Inspector
+    public LabyrinthSpawnManager spawnManager; // Reference ke spawn manager
 
     private void Awake()
     {
@@ -68,6 +69,10 @@ public class GameManager : MonoBehaviour
         {
             SyncCollectiblesCount();
         }
+        
+        // Auto-find spawn manager jika tidak di-assign
+        if (spawnManager == null)
+            spawnManager = FindObjectOfType<LabyrinthSpawnManager>();
 
         // Try find HUD in scene if not manually assigned
         if (hudController == null)
@@ -259,19 +264,34 @@ public class GameManager : MonoBehaviour
                 return;
             }
         }
+        
+        Vector3 respawnPosition;
+        
+        // Gunakan LabyrinthSpawnManager jika tersedia untuk respawn random yang aman
+        if (spawnManager != null)
+        {
+            respawnPosition = spawnManager.GetPlayerRespawnPosition();
+            Debug.Log($"[GameManager] Using SpawnManager for safe respawn at {respawnPosition}");
+        }
+        else
+        {
+            // Fallback ke checkpoint system
+            respawnPosition = lastCheckpointPos;
+            Debug.Log($"[GameManager] Using checkpoint respawn at {respawnPosition}");
+        }
 
-        // Teleport player ke last checkpoint
+        // Teleport player ke respawn position
         CharacterController cc = player.GetComponent<CharacterController>();
         if (cc != null)
         {
             // disable controller temporarily to avoid collision/overlap issues
             cc.enabled = false;
-            player.transform.position = lastCheckpointPos;
+            player.transform.position = respawnPosition;
             cc.enabled = true;
         }
         else
         {
-            player.transform.position = lastCheckpointPos;
+            player.transform.position = respawnPosition;
         }
 
         playerLives--;

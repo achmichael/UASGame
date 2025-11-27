@@ -5,14 +5,28 @@ using UnityEngine;
 public class GridBuilder : MonoBehaviour
 {
     [Header("Grid Settings")]
-    public int gridWidth = 10;      // Lebar grid (X)
-    public int gridHeight = 10;     // Tinggi grid (Z)
-    public float nodeSpacing = 2f;  // Jarak antar node
-    public Vector3 gridOrigin = Vector3.zero;  // Titik awal grid
+    [Tooltip("Lebar grid (jumlah node di sumbu X)")]
+    public int gridWidth = 10;
+    [Tooltip("Panjang grid (jumlah node di sumbu Z)")]
+    public int gridHeight = 10;
+    [Tooltip("Jarak antar node dalam units")]
+    public float nodeSpacing = 2f;
+    [Tooltip("Titik awal grid (pojok kiri bawah labirin)")]
+    public Vector3 gridOrigin = Vector3.zero;
     
     [Header("Walkability Detection")]
-    public LayerMask unwalkableMask;  // Layer untuk wall/obstacle
-    public float nodeRadius = 0.5f;   // Radius check untuk obstacle
+    [Tooltip("Layer untuk wall/obstacle - HARUS SAMA dengan wallLayer di SpawnManager")]
+    public LayerMask unwalkableMask;
+    [Tooltip("Radius check untuk obstacle detection")]
+    public float nodeRadius = 0.5f;
+    
+    [Header("Auto Detection")]
+    [Tooltip("Auto-detect grid bounds dari labyrinth parent")]
+    public bool autoDetectBounds = false;
+    [Tooltip("Parent object labirin untuk auto-detect")]
+    public Transform labyrinthParent;
+    [Tooltip("Offset ketinggian dari dasar labirin (bounds.min.y). Atur ini agar grid pas di atas lantai.")]
+    public float autoDetectHeightOffset = 0.1f;
     
     [Header("Visualization")]
     public bool showGizmos = true;
@@ -25,7 +39,35 @@ public class GridBuilder : MonoBehaviour
     
     void Awake()
     {
+        if (autoDetectBounds && labyrinthParent != null)
+        {
+            AutoDetectGridSettings();
+        }
+        
         CreateGrid();
+    }
+    
+    void AutoDetectGridSettings()
+    {
+        Collider[] colliders = labyrinthParent.GetComponentsInChildren<Collider>();
+        
+        if (colliders.Length > 0)
+        {
+            Bounds bounds = colliders[0].bounds;
+            foreach (Collider col in colliders)
+            {
+                bounds.Encapsulate(col.bounds);
+            }
+            
+            // Set grid origin ke pojok kiri bawah (menggunakan bounds.min.y + offset)
+            gridOrigin = new Vector3(bounds.min.x, bounds.min.y + autoDetectHeightOffset, bounds.min.z);
+            
+            // Hitung grid size
+            gridWidth = Mathf.Max(5, Mathf.FloorToInt(bounds.size.x / nodeSpacing));
+            gridHeight = Mathf.Max(5, Mathf.FloorToInt(bounds.size.z / nodeSpacing));
+            
+            Debug.Log($"[GridBuilder] Auto-detected: Origin={gridOrigin}, Grid={gridWidth}x{gridHeight}");
+        }
     }
     
     void CreateGrid()
